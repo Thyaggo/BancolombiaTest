@@ -11,6 +11,7 @@ from langchain.agents import create_agent
 from langchain.agents.middleware import SummarizationMiddleware
 from langgraph.checkpoint.memory import InMemorySaver
 
+
 class BancolombiaPipeline:
     def __init__(self, input_file, db_dir):
         self.input_file = input_file
@@ -29,10 +30,15 @@ class BancolombiaPipeline:
 
         docs = [
             Document(
-                page_content=p['raw_markdown'],
-                metadata={'url': p['url'], 'titulo': p['titulo']}
+                page_content=p["raw_markdown"],
+                metadata={
+                    "url": p["url"],
+                    "titulo": p["titulo"],
+                    "categoria": p.get("categoria", "Otros / Landing"),
+                },
             )
-            for p in datos.get('pages', []) if p.get('raw_markdown')
+            for p in datos.get("pages", [])
+            if p.get("raw_markdown")
         ]
 
         splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=150)
@@ -42,14 +48,14 @@ class BancolombiaPipeline:
         vector_store = Chroma(
             collection_name="bancolombia_docs",
             embedding_function=self.embeddings,
-            persist_directory=self.db_dir
+            persist_directory=self.db_dir,
         )
         vector_store.delete_collection()
-        
+
         vector_store = Chroma(
             collection_name="bancolombia_docs",
             embedding_function=self.embeddings,
-            persist_directory=self.db_dir
+            persist_directory=self.db_dir,
         )
         vector_store.add_documents(splits)
         return len(splits)
@@ -58,13 +64,16 @@ class BancolombiaPipeline:
         """Instancia el modelo, herramientas MCP y el Agente."""
         model = init_chat_model("google_genai:gemini-3-preview")
 
-        client = MultiServerMCPClient({
-            "bancolombia_tools": {
-                "transport": "stdio",
-                "command": "python",
-                "args": [str(Path("mcp_server.py").resolve())]
+        mcp_server_path = str(Path(__file__).resolve().parent / "mcp_server.py")
+        client = MultiServerMCPClient(
+            {
+                "bancolombia_tools": {
+                    "transport": "stdio",
+                    "command": "python",
+                    "args": [mcp_server_path],
+                }
             }
-        })
+        )
 
         tools = await client.get_tools()
 
@@ -75,7 +84,7 @@ class BancolombiaPipeline:
                 SummarizationMiddleware(
                     model="google_genai:gemini-3-preview",
                     trigger=("tokens", 3000),
-                    keep=("messages", 10)
+                    keep=("messages", 10),
                 )
             ],
             checkpointer=InMemorySaver(),

@@ -201,3 +201,5 @@ pip-selfcheck.json
 chroma_banco_db
 resultados_bancolombia.json
 INFORME.md
+.kilo/
+.streamlit/
