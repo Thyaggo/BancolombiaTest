@@ -198,7 +198,6 @@ pip-selfcheck.json
 
 # End of https://www.toptal.com/developers/gitignore/api/python,jupyternotebooks,venv
 
-src/
 chroma_banco_db
 resultados_bancolombia.json
 INFORME.md
