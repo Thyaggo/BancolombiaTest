@@ -62,7 +62,7 @@ class BancolombiaPipeline:
 
     async def configurar_agente(self):
         """Instancia el modelo, herramientas MCP y el Agente."""
-        model = init_chat_model("google_genai:gemini-3-preview")
+        model = init_chat_model("google_genai:gemini-3-flash-preview")
 
         mcp_server_path = str(Path(__file__).resolve().parent / "mcp_server.py")
         client = MultiServerMCPClient(
@@ -82,7 +82,7 @@ class BancolombiaPipeline:
             tools=tools,
             middleware=[
                 SummarizationMiddleware(
-                    model="google_genai:gemini-3-preview",
+                    model="google_genai:gemini-3-flash-preview",
                     trigger=("tokens", 3000),
                     keep=("messages", 10),
                 )

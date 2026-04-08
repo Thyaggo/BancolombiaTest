@@ -50,8 +50,8 @@ async def run_system():
                 {"messages": [{"role": "user", "content": pregunta}]}, 
                 config=config
             ):
-                if "agent" in event:
-                    respuesta = event['agent']['messages'][-1].content
+                if 'model' in event:
+                    respuesta = event['model']['messages'][-1].content[-1]['text']
                     print(f"\nAsistente: {respuesta}")
 
     except Exception as e:
