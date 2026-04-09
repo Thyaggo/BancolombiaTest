@@ -1,5 +1,6 @@
 import json
 import asyncio
+import logging
 from datetime import datetime, timezone
 
 # Crawl4AI
@@ -8,6 +9,8 @@ from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
 from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
 from crawl4ai.content_filter_strategy import PruningContentFilter
 from crawl4ai.async_dispatcher import MemoryAdaptiveDispatcher
+
+logger = logging.getlogger(__name__)
 
 # Configuración Global
 OUTPUT_FILE = "resultados_bancolombia.json"
@@ -68,6 +71,7 @@ async def main():
         scraping_strategy=LXMLWebScrapingStrategy(),
         excluded_tags=["script", "style", "header", "footer", "form", "iframe", "nav", "img", "picture", "svg"],
         word_count_threshold=30,
+        only_text=True,
         remove_overlay_elements=True,
         exclude_all_images=True,
         exclude_external_images=True,
@@ -90,42 +94,34 @@ async def main():
         rate_limiter=RateLimiter(base_delay=(2.0, 4.0), max_delay=30.0, max_retries=2),
     )
 
-    scraped, errores = [], []
+    with open(OUTPUT_FILE, "a", encoding="utf-8") as f:
+        async with AsyncWebCrawler(config=browser_cfg) as crawler:
+            # Usamos el stream del crawler
+            async for result in await crawler.arun_many(urls=urls, config=run_config, dispatcher=dispatcher):
+                if not result.success:
+                    # Log de errores inmediato en lugar de lista en memoria
+                    logger.error(f"Fallo en {result.url}: {result.error_message}")
+                    continue
 
-    async with AsyncWebCrawler(config=browser_cfg) as crawler:
-        async for result in await crawler.arun_many(urls=urls, config=run_config, dispatcher=dispatcher):
-            if not result.success:
-                errores.append({"url": result.url, "error": result.error_message})
-                continue
+                # Procesar datos
+                md = result.markdown
+                page_data = {
+                    "url": result.url,
+                    "titulo": result.metadata.get("title", "Sin Título") if result.metadata else "Sin Título",
+                    "categoria": categorizar_url(result.url),
+                    "status_code": result.status_code,
+                    "scraped_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+                    "fit_markdown": md.fit_markdown if md and md.fit_markdown else "",
+                    "raw_markdown": md.raw_markdown if md and md.raw_markdown else "",
+                }
 
-            md = result.markdown
-            fit_md = md.fit_markdown if md and md.fit_markdown else ""
-            raw_md = md.raw_markdown if md and md.raw_markdown else ""
-            titulo = result.metadata.get("title", "Sin Título") if result.metadata else "Sin Título"
+                # PERSISTENCIA ATÓMICA: Escribir línea por línea
+                f.write(json.dumps(page_data, ensure_ascii=False) + "\n")
+                f.flush() # Forzar escritura en disco
+                
+                logger.info(f"Guardado: {result.url}")
 
-            scraped.append({
-                "url": result.url,
-                "titulo": titulo,
-                "categoria": categorizar_url(result.url),
-                "status_code": result.status_code,
-                "scraped_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
-                "word_count_raw": len(raw_md.split()),
-                "word_count_fit": len(fit_md.split()),
-                "fit_markdown": fit_md,
-                "raw_markdown": raw_md,
-            })
-
-    output = {
-        "exported_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
-        "total_ok": len(scraped),
-        "total_errors": len(errores),
-        "pages": scraped,
-        "errors": errores,
-    }
-
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        json.dump(output, f, ensure_ascii=False, indent=2)
-    print(f"Crawler finalizado. Datos persistidos en {OUTPUT_FILE}")
+    print(f"Crawler finalizado. Datos persistidos incrementalmente en {OUTPUT_FILE}")
 
 if __name__ == "__main__":
     asyncio.run(main())
