@@ -2,6 +2,7 @@
 resultados_bancolombia.jsonl
 chroma_banco_db/
 data/
+venv/
 
 # Entorno y secretos
 .env
