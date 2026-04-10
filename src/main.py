@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from pipeline import BancolombiaPipeline
 
 # Configuración de constantes
-INPUT_JSON = "resultados_bancolombia.jsonl"
+INPUT_JSON = "data/resultados_bancolombia.jsonl"
 DB_PATH = "./chroma_banco_db"
 
 

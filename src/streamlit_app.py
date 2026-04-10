@@ -14,7 +14,7 @@ from pipeline import BancolombiaPipeline
 
 # ── Rutas absolutas relativas al proyecto ────────────────────────────────────
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-INPUT_JSON = str(PROJECT_ROOT / "resultados_bancolombia.json")
+INPUT_JSON = str(PROJECT_ROOT / "resultados_bancolombia.jsonl")
 DB_PATH = str(PROJECT_ROOT / "chroma_banco_db")
 
 # ── Event loop en thread daemon ──────────────────────────────────────────────
@@ -28,6 +28,26 @@ def run_async(coro):
     """Ejecuta una coroutine en el event loop background y bloquea hasta obtener resultado."""
     future = asyncio.run_coroutine_threadsafe(coro, _loop)
     return future.result()
+
+
+def _extract_text_from_content(content) -> str:
+    """Extrae texto legible del campo content de un AIMessage.
+
+    content puede ser:
+      - str: texto directo
+      - list[dict]: lista de ContentBlocks (ej. [{'type': 'text', 'text': '...'}])
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "text":
+                parts.append(block["text"])
+            elif isinstance(block, str):
+                parts.append(block)
+        return "".join(parts)
+    return ""
 
 
 # ── Inicialización única del agente ──────────────────────────────────────────
@@ -47,17 +67,46 @@ def init_agent():
 
 
 # ── Consultar agente ─────────────────────────────────────────────────────────
-def query_agent(agent, question: str, thread_id: str) -> str:
+def query_agent(agent, question: str, thread_id: str) -> dict:
+    """Ejecuta una pregunta contra el agente y retorna respuesta + fuentes.
+
+    Retorna dict: {"respuesta": str, "fuentes": list[dict]}
+    donde cada fuente es {"titulo": str, "url": str}.
+    """
     async def _stream():
         config = {"configurable": {"thread_id": thread_id}}
         full_response = ""
+        source_list: list[dict] = []
+        seen_urls: set[str] = set()
+
         async for event in agent.astream(
             {"messages": [{"role": "user", "content": question}]},
             config=config,
         ):
-            if "agent" in event:
-                full_response = event["agent"]["messages"][-1].content
-        return full_response
+            # ── Capturar fuentes desde las respuestas de los tools MCP ──
+            if "tools" in event:
+                for msg in event["tools"]["messages"]:
+                    try:
+                        fuentes = msg.artifact["structured_content"]["fuentes"]
+                        for fuente in fuentes:
+                            url = fuente.get("url", "")
+                            if url and url not in seen_urls:
+                                seen_urls.add(url)
+                                source_list.append(fuente)
+                    except (KeyError, TypeError, AttributeError):
+                        continue
+
+            # ── Capturar la respuesta final del modelo ──
+            if "model" in event:
+                try:
+                    last_msg = event["model"]["messages"][-1]
+                    text = _extract_text_from_content(last_msg.content)
+                    if text.strip():
+                        full_response = text
+                except (KeyError, IndexError, TypeError):
+                    continue
+
+        return {"respuesta": full_response, "fuentes": source_list}
 
     return run_async(_stream())
 
@@ -101,7 +150,26 @@ if prompt := st.chat_input("¿En qué puedo ayudarte?"):
     # Generar respuesta del agente
     with st.chat_message("assistant"):
         with st.spinner("Pensando..."):
-            response = query_agent(agent, prompt, st.session_state.thread_id)
-            st.markdown(response)
+            result = query_agent(agent, prompt, st.session_state.thread_id)
+            respuesta = result["respuesta"]
+            fuentes = result["fuentes"]
 
-    st.session_state.messages.append({"role": "assistant", "content": response})
+            st.markdown(respuesta)
+
+            if fuentes:
+                st.markdown("---")
+                st.markdown("**Fuentes consultadas:**")
+                for fuente in fuentes:
+                    titulo = fuente.get("titulo", "Sin título")
+                    url = fuente.get("url", "")
+                    st.markdown(f"- [{titulo}]({url})")
+
+    # Guardar en historial incluyendo fuentes como markdown
+    content_for_history = respuesta
+    if fuentes:
+        links = "\n".join(
+            f"- [{f.get('titulo', 'Sin título')}]({f.get('url', '')})"
+            for f in fuentes
+        )
+        content_for_history += f"\n\n---\n**Fuentes consultadas:**\n{links}"
+    st.session_state.messages.append({"role": "assistant", "content": content_for_history})

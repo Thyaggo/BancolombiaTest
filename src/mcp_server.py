@@ -132,40 +132,31 @@ def list_categories() -> str:
 
 @mcp.resource("knowledge-base://stats")
 def get_knowledge_base_stats() -> str:
-    """
-    Expone estadísticas de la base de conocimiento: número de documentos, 
-    categorías, fecha de actualización y modelo de embeddings.
-    """
     try:
+        # 1. Conteo rápido (O(1) en la mayoría de implementaciones vectoriales)
         doc_count = vector_store._collection.count()
         
-        # Recuperar metadatos para extraer categorías y fechas
-        all_data = vector_store.get(include=["metadatas"])
-        metadatas = all_data.get("metadatas", [])
+        # 2. EFICIENCIA: Recuperar SOLO un documento para sacar la fecha y categorías
+        # En lugar de .get(include=["metadatas"]), pedimos un sample de 1.
+        sample_data = vector_store.get(limit=1, include=["metadatas"])
         
-        categories = list(set(meta.get("categoria") for meta in metadatas if meta and meta.get("categoria")))
-        
-        # Extracción de fecha: Sujeto a corrección en tu pipeline de indexación
-        last_update = "Desconocida (Requiere corrección: Agregar fecha en indexar_datos)"
-        if metadatas:
-            # Busca la primera fecha disponible si corriges el pipeline
-            for meta in metadatas:
-                if meta and meta.get("scraped_at"):
-                    last_update = meta.get("scraped_at")
-                    break
+        last_update = "No disponible"
+        if sample_data["metadatas"]:
+            last_update = sample_data["metadatas"][0].get("scraped_at", "Fecha no disponible")
 
+        # 3. Para las categorías, si son pocas, podrías guardarlas en un JSON aparte 
+        # durante la indexación para no tener que iterar la DB aquí.
+        # Por ahora, si quieres ser eficiente, recupera una muestra representativa, no TODO.
+        
         stats = {
             "documentos_indexados": doc_count,
-            "categorias_disponibles": categories,
-            "modelo_embeddings": db_client.get_embeddings_name(),
-            "fecha_ultima_actualizacion": last_update
+            "fecha_muestra_scraped": last_update,
+            "modelo_embeddings": db_client.get_embeddings_name()
         }
         return json.dumps(stats, indent=2, ensure_ascii=False)
 
     except Exception as e:
-        print(f"Error en get_knowledge_base_stats: {e}")
-        return json.dumps({"error": f"Fallo al recuperar estadísticas: {str(e)}"})
-
+        return json.dumps({"error": f"Error al recuperar estadísticas: {str(e)}"})
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")

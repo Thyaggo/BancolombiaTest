@@ -33,10 +33,17 @@ class BancolombiaPipeline:
         batch = []
         batch_size = 50 # Indexamos de a 50 para optimizar llamadas a la DB
 
+        existing_data = self.vector_store.get(include=["metadatas"])
+        existing_urls = {m["url"] for m in existing_data["metadatas"] if "url" in m}
+
         # LEER LÍNEA POR LÍNEA (Uso eficiente de memoria)
         with open(self.input_file, "r", encoding="utf-8") as f:
             for line in f:
                 p = json.loads(line)
+
+                if p["url"] in existing_urls:
+                    continue
+
                 if not p.get("fit_markdown"):
                     continue
 

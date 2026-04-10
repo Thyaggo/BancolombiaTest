@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    container_name: bancolombia-app
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./resultados_bancolombia.jsonl:/app/resultados_bancolombia.jsonl
+      - ./chroma_banco_db:/app/chroma_banco_db
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped

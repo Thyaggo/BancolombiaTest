@@ -10,7 +10,7 @@ from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
 from crawl4ai.content_filter_strategy import PruningContentFilter
 from crawl4ai.async_dispatcher import MemoryAdaptiveDispatcher
 
-logger = logging.getlogger(__name__)
+logger = logging.getLogger(__name__)
 
 # Configuración Global
 OUTPUT_FILE = "resultados_bancolombia.json"
