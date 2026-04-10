@@ -15,45 +15,77 @@ from database import VectorDBClient
 
 class BancolombiaPipeline:
     def __init__(self, input_file: str, db_dir: str):
+        if not input_file or not isinstance(input_file, str):
+            raise ValueError("input_file debe ser una ruta de archivo válida y no vacía.")
+        if not db_dir or not isinstance(db_dir, str):
+            raise ValueError("db_dir debe ser una ruta de directorio válida y no vacía.")
         self.input_file = input_file
         # El pipeline recibe el cliente de DB, no lo crea internamente
         self.db_client = VectorDBClient(db_dir)
         self.vector_store = self.db_client.get_store()
 
     def indexar_datos(self, force_reindex: bool = False) -> int:
+        """Lee el JSONL, filtra registros válidos e indexa en ChromaDB.
+
+        Args:
+            force_reindex: Si True, elimina la colección existente y re-indexa todo.
+
+        Returns:
+            Número de páginas procesadas e indexadas.
+
+        Raises:
+            FileNotFoundError: Si input_file no existe.
+        """
         if not os.path.exists(self.input_file):
             raise FileNotFoundError(f"Archivo {self.input_file} no encontrado.")
 
-        # Lógica de limpieza previa si es necesario
+        # Eliminar colección previa y reinicializar el store limpio
         if force_reindex:
             self.vector_store.delete_collection()
-            # ... reinicializar store ...
+            self.vector_store = self.db_client.get_store()
 
         total_processed = 0
         batch = []
-        batch_size = 50 # Indexamos de a 50 para optimizar llamadas a la DB
+        batch_size = 50  # Indexamos de a 50 para optimizar llamadas a la DB
 
         existing_data = self.vector_store.get(include=["metadatas"])
-        existing_urls = {m["url"] for m in existing_data["metadatas"] if "url" in m}
+        existing_urls = {m["url"] for m in existing_data["metadatas"] if m and "url" in m}
 
-        # LEER LÍNEA POR LÍNEA (Uso eficiente de memoria)
+        # LEER LÍNEA POR LÍNEA (uso eficiente de memoria)
         with open(self.input_file, "r", encoding="utf-8") as f:
-            for line in f:
-                p = json.loads(line)
-
-                if p["url"] in existing_urls:
+            for line_num, line in enumerate(f, start=1):
+                line = line.strip()
+                if not line:
                     continue
 
-                if not p.get("fit_markdown"):
+                try:
+                    p = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    import logging as _logging
+                    _logging.getLogger(__name__).warning(
+                        f"Línea {line_num} ignorada (JSON inválido): {exc}"
+                    )
                     continue
+
+                # Validar campos obligatorios
+                url = p.get("url", "").strip()
+                titulo = p.get("titulo", "").strip()
+                fit_markdown = p.get("fit_markdown", "").strip()
+
+                if not url:
+                    continue  # Registro sin URL no es indexable
+                if url in existing_urls:
+                    continue  # Ya está en la base de datos
+                if not fit_markdown:
+                    continue  # Sin contenido no tiene valor semántico
 
                 doc = Document(
-                    page_content=p["fit_markdown"],
+                    page_content=fit_markdown,
                     metadata={
-                        "url": p["url"],
-                        "titulo": p["titulo"],
-                        "categoria": p.get("categoria", "Otros / Landing"),
-                        "scraped_at": p.get("scraped_at", "Fecha no disponible")
+                        "url": url,
+                        "titulo": titulo or "Sin título",
+                        "categoria": p.get("categoria", "Otros / Landing") or "Otros / Landing",
+                        "scraped_at": p.get("scraped_at", "Fecha no disponible") or "Fecha no disponible",
                     },
                 )
                 batch.append(doc)
@@ -66,10 +98,11 @@ class BancolombiaPipeline:
                     batch = []
                     print(f"Progreso: {total_processed} páginas indexadas...")
 
-            # Procesar el último lote restante
-            if batch:
-                splits = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=300).split_documents(batch)
-                self.vector_store.add_documents(splits)
+        # Procesar el último lote restante
+        if batch:
+            splits = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=300).split_documents(batch)
+            self.vector_store.add_documents(splits)
+            total_processed += len(batch)
 
         return total_processed
 

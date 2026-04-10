@@ -1,7 +1,25 @@
+# Datos generados en runtime (se montan como volúmenes)
 resultados_bancolombia.jsonl
-.kilo
-.pytest_cache
-chroma_banco_db
+chroma_banco_db/
+data/
+
+# Entorno y secretos
 .env
+.env.*
+
+# Control de versiones
+.git/
 .gitignore
-PoC.ipynb
+
+# Herramientas de desarrollo y CI
+.kilo/
+.pytest_cache/
+tests/
+pyproject.toml
+*.ipynb
+.ipynb_checkpoints/
+
+# Bytecode Python
+**/__pycache__/
+**/*.pyc
+**/*.pyo

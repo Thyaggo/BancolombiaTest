@@ -2,12 +2,18 @@ import asyncio
 import json
 import sys
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 from pipeline import BancolombiaPipeline
+from crawler import run_crawler
 
-# Configuración de constantes
-INPUT_JSON = "data/resultados_bancolombia.jsonl"
-DB_PATH = "./chroma_banco_db"
+# ── Rutas de datos ─────────────────────────────────────────────────────────────
+# En Docker se inyectan DATA_DIR y DB_PATH vía variables de entorno (docker-compose).
+# Localmente, si no están definidas, se usan los paths por defecto junto al proyecto.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_DATA_DIR = Path(os.getenv("DATA_DIR", str(PROJECT_ROOT)))
+INPUT_JSON = str(_DATA_DIR / "resultados_bancolombia.jsonl")
+DB_PATH = os.getenv("DB_PATH", str(PROJECT_ROOT / "chroma_banco_db"))
 
 
 # def _extract_sources_from_tool(content: str) -> list[dict]:
@@ -44,6 +50,23 @@ def _extract_text_from_content(content) -> str:
     return ""
 
 
+async def _ensure_data_file() -> None:
+    """Verifica que el JSONL exista y tenga contenido; si no, ejecuta el crawler."""
+    jsonl_path = Path(INPUT_JSON)
+    if jsonl_path.exists() and jsonl_path.stat().st_size > 0:
+        return
+
+    action = "creando" if not jsonl_path.exists() else "regenerando (archivo vacío)"
+    print(f"\n[INFO] Datos no encontrados — {action} la base de conocimiento...")
+    print("[INFO] Ejecutando crawler de Bancolombia. Esto puede tardar varios minutos...\n")
+
+    pages = await run_crawler(INPUT_JSON)
+    if pages == 0:
+        print("[ERROR] El crawler finalizó sin guardar páginas. Verifica la conectividad.")
+        sys.exit(1)
+    print(f"\n[INFO] Datos listos: {pages} páginas descargadas.\n")
+
+
 async def run_system():
     load_dotenv()
 
@@ -51,6 +74,9 @@ async def run_system():
     if not os.getenv("GOOGLE_API_KEY"):
         print("ERROR: Falta GOOGLE_API_KEY en el archivo .env")
         sys.exit(1)
+
+    # Verificar / generar datos
+    await _ensure_data_file()
 
     # Inicializar la lógica del pipeline
     pipe = BancolombiaPipeline(INPUT_JSON, DB_PATH)

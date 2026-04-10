@@ -5,10 +5,19 @@ services:
     ports:
       - "8501:8501"
     volumes:
-      - ./resultados_bancolombia.jsonl:/app/resultados_bancolombia.jsonl
+      # ./data  → directorio del host para el JSONL generado por el crawler.
+      # Montar un DIRECTORIO evita el bug de Docker que crea un directorio
+      # en lugar de un archivo cuando el host path no existe en bind-mounts de fichero.
+      # Si ./data no existe, Docker lo crea vacío; la app detecta el JSONL ausente
+      # y ejecuta el crawler automáticamente.
+      - ./data:/app/data
+      # ./chroma_banco_db → persistencia de la base vectorial entre reinicios.
       - ./chroma_banco_db:/app/chroma_banco_db
     env_file:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
+      # Rutas de datos dentro del contenedor (deben coincidir con los volúmenes)
+      - DATA_DIR=/app/data
+      - DB_PATH=/app/chroma_banco_db
     restart: unless-stopped

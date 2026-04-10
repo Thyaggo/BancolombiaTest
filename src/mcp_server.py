@@ -29,15 +29,20 @@ def search_knowledge_base(query: str) -> KnowledgeBaseResponse:
       - contenido: texto con los fragmentos relevantes encontrados.
       - fuentes: lista de objetos {titulo, url} de las páginas consultadas.
     """
+    if not query or not isinstance(query, str) or not query.strip():
+        return KnowledgeBaseResponse(
+            contenido="La consulta no puede estar vacía.",
+            fuentes=[],
+        )
+
     try:
-        results = vector_store.similarity_search(query, k=3)
+        results = vector_store.similarity_search(query.strip(), k=3)
 
         if not results:
             return KnowledgeBaseResponse(
                 contenido="No se encontraron resultados relevantes en la base de datos.",
-                fuentes=[]
+                fuentes=[],
             )
-                
 
         fragments = []
         fuentes_seen: dict[str, str] = {}  # url -> titulo (dedup)
@@ -52,13 +57,13 @@ def search_knowledge_base(query: str) -> KnowledgeBaseResponse:
 
         return KnowledgeBaseResponse(
             contenido="\n\n".join(fragments),
-            fuentes=fuentes
+            fuentes=fuentes,
         )
 
     except Exception as e:
         return KnowledgeBaseResponse(
             contenido=f"Error al buscar en la base de datos: {str(e)}",
-            fuentes=[]
+            fuentes=[],
         )
 
 
@@ -72,6 +77,14 @@ def get_article_by_url(url: str) -> str:
       - contenido: texto completo del artículo.
       - fuentes: lista con un objeto {titulo, url} de la página consultada.
     """
+    if not url or not isinstance(url, str) or not url.strip():
+        return json.dumps(
+            {"contenido": "La URL no puede estar vacía.", "fuentes": []},
+            ensure_ascii=False,
+        )
+
+    url = url.strip()
+
     try:
         results = vector_store.get(where={"url": url}, include=["documents", "metadatas"])
 
@@ -85,8 +98,8 @@ def get_article_by_url(url: str) -> str:
             )
 
         titulo = "Sin título"
-        if metadatas:
-            titulo = metadatas[0].get("titulo", "Sin título")
+        if metadatas and metadatas[0]:
+            titulo = metadatas[0].get("titulo", "Sin título") or "Sin título"
 
         return json.dumps(
             {
@@ -107,7 +120,6 @@ def get_article_by_url(url: str) -> str:
 def list_categories() -> str:
     """Usa esta herramienta para listar las categorías de los artículos guardados en la base de datos."""
     try:
-        # Fix #7: Implementación real — extrae categorías únicas de los metadatos
         all_data = vector_store.get(include=["metadatas"])
         metadatas = all_data.get("metadatas", [])
 
@@ -116,9 +128,10 @@ def list_categories() -> str:
 
         categories = set()
         for meta in metadatas:
-            cat = meta.get("categoria")
-            if cat:
-                categories.add(cat)
+            if meta:
+                cat = meta.get("categoria")
+                if cat and isinstance(cat, str) and cat.strip():
+                    categories.add(cat.strip())
 
         if not categories:
             return "No se encontraron categorías en los metadatos. Los documentos no tienen el campo 'categoria'."

@@ -9,8 +9,11 @@ EMBEDDINGS_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 COLLECTION_NAME = "bancolombia_docs"
 
 class VectorDBClient:
-    """Clase Singleton o manejador centralizado para la base vectorial."""
+    """Manejador centralizado para la base vectorial ChromaDB."""
+
     def __init__(self, db_path: str):
+        if not db_path or not isinstance(db_path, str):
+            raise ValueError("db_path debe ser una ruta de directorio válida y no vacía.")
         self.db_path = db_path
         self._embeddings = HuggingFaceEmbeddings(model_name=EMBEDDINGS_MODEL)
         self._vector_store = None

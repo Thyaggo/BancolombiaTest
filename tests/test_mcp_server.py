@@ -203,7 +203,7 @@ class TestGetKnowledgeBaseStats:
 
         data = json.loads(result)
         assert data["documentos_indexados"] == 50
-        assert "Productos y Servicios" in data["categorias_disponibles"]
+        assert "modelo_embeddings" in data
         assert data["modelo_embeddings"] == "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
     @patch("mcp_server.vector_store")

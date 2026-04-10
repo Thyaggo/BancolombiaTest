@@ -1,6 +1,8 @@
 import json
 import asyncio
 import logging
+import os
+from pathlib import Path
 from datetime import datetime, timezone
 
 # Crawl4AI
@@ -13,14 +15,25 @@ from crawl4ai.async_dispatcher import MemoryAdaptiveDispatcher
 logger = logging.getLogger(__name__)
 
 # Configuración Global
-OUTPUT_FILE = "resultados_bancolombia.json"
+# DATA_DIR permite sobreescribir la ubicación en Docker vía variable de entorno.
+# Localmente se usa el directorio de trabajo actual como fallback.
+_DATA_DIR = os.getenv("DATA_DIR", ".")
+DEFAULT_OUTPUT_FILE = str(Path(_DATA_DIR) / "resultados_bancolombia.jsonl")
 SEED_URL = "https://www.bancolombia.com/personas"
 SKIP_PATTERNS = ["/!ut/p/", ".pdf", "contenthandler", "solicitud-turno.apps.", "segurodeviaje."]
 
+
 def is_crawlable(url: str) -> bool:
+    """Retorna True si la URL no coincide con ningún patrón a omitir."""
+    if not url or not isinstance(url, str):
+        return False
     return not any(p in url for p in SKIP_PATTERNS)
 
+
 def categorizar_url(url: str) -> str:
+    """Clasifica una URL en una categoría de contenido de Bancolombia."""
+    if not url or not isinstance(url, str):
+        return "Otros / Landing"
     u = url.lower()
     if any(k in u for k in ["acerca-de", "corporativo", "gobierno-corporativo", "trabaja-con-nosotros", "mapa-del-sitio", "condiciones-de-uso"]):
         return "Institucional / Corporativo"
@@ -38,35 +51,63 @@ def categorizar_url(url: str) -> str:
         return "Canales Digitales / Sucursales Virtuales"
     return "Otros / Landing"
 
-async def main():
+
+async def run_crawler(output_file: str = DEFAULT_OUTPUT_FILE) -> int:
+    """Ejecuta el crawler completo y persiste resultados en *output_file* (JSONL).
+
+    Puede ser invocado desde otros módulos (streamlit_app, main) además de
+    ejecutarse como script independiente.
+
+    Args:
+        output_file: Ruta del archivo de salida. Se crea si no existe.
+
+    Returns:
+        Número de páginas guardadas exitosamente.
+
+    Raises:
+        ValueError: Si output_file es una cadena vacía.
+        RuntimeError: Si la URL semilla falla completamente.
+    """
+    if not output_file or not isinstance(output_file, str):
+        raise ValueError("output_file debe ser una ruta de archivo válida.")
+
+    # Asegurar que el directorio padre existe
+    output_path = Path(output_file)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
     print("Fase 1: Extracción de URLs semilla...")
-    config = CrawlerRunConfig(prefetch=True, cache_mode="BYPASS", check_robots_txt=False, magic=True)
+    seed_config = CrawlerRunConfig(
+        cache_mode=CacheMode.BYPASS,
+        check_robots_txt=False,
+        magic=True,
+    )
     browser_cfg = BrowserConfig(
-        headless=True, 
+        headless=True,
         verbose=False,
         headers={
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-            "Accept-Language": "es-CO,es;q=0.9,en-US;q=0.8,en;q=0.7"
-        }
+            "Accept-Language": "es-CO,es;q=0.9,en-US;q=0.8,en;q=0.7",
+        },
     )
 
     async with AsyncWebCrawler(config=browser_cfg) as crawler:
-        result = await crawler.arun(url=SEED_URL, config=config)
+        result = await crawler.arun(url=SEED_URL, config=seed_config)
         if not result.success:
             raise RuntimeError(f"Fallo crítico en URL semilla: {result.error_message}")
 
         urls = [
-            link["href"] for link in result.links.get("internal", [])
+            link["href"]
+            for link in result.links.get("internal", [])
             if link.get("href") and link["href"].startswith("http") and is_crawlable(link["href"])
         ]
         urls = list(dict.fromkeys(urls))
-    
+
     if not urls:
-        print("Operación abortada: No se encontraron URLs válidas.")
-        return
+        print("Operación abortada: No se encontraron URLs válidas en la semilla.")
+        return 0
 
     print(f"Fase 2: Deep Crawl sobre {len(urls)} URLs...")
-    
+
     run_config = CrawlerRunConfig(
         scraping_strategy=LXMLWebScrapingStrategy(),
         excluded_tags=["script", "style", "header", "footer", "form", "iframe", "nav", "img", "picture", "svg"],
@@ -94,16 +135,14 @@ async def main():
         rate_limiter=RateLimiter(base_delay=(2.0, 4.0), max_delay=30.0, max_retries=2),
     )
 
-    with open(OUTPUT_FILE, "a", encoding="utf-8") as f:
+    pages_saved = 0
+    with open(output_file, "a", encoding="utf-8") as f:
         async with AsyncWebCrawler(config=browser_cfg) as crawler:
-            # Usamos el stream del crawler
             async for result in await crawler.arun_many(urls=urls, config=run_config, dispatcher=dispatcher):
                 if not result.success:
-                    # Log de errores inmediato en lugar de lista en memoria
                     logger.error(f"Fallo en {result.url}: {result.error_message}")
                     continue
 
-                # Procesar datos
                 md = result.markdown
                 page_data = {
                     "url": result.url,
@@ -115,13 +154,15 @@ async def main():
                     "raw_markdown": md.raw_markdown if md and md.raw_markdown else "",
                 }
 
-                # PERSISTENCIA ATÓMICA: Escribir línea por línea
+                # Persistencia atómica línea a línea
                 f.write(json.dumps(page_data, ensure_ascii=False) + "\n")
-                f.flush() # Forzar escritura en disco
-                
+                f.flush()
+                pages_saved += 1
                 logger.info(f"Guardado: {result.url}")
 
-    print(f"Crawler finalizado. Datos persistidos incrementalmente en {OUTPUT_FILE}")
+    print(f"Crawler finalizado. {pages_saved} páginas guardadas en {output_file}")
+    return pages_saved
+
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(run_crawler())

@@ -7,15 +7,19 @@ from pathlib import Path
 import streamlit as st
 from dotenv import load_dotenv
 
-# Asegurar que src/ esté en sys.path para importar pipeline
+# Asegurar que src/ esté en sys.path para importar pipeline y crawler
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from pipeline import BancolombiaPipeline
+from crawler import run_crawler
 
-# ── Rutas absolutas relativas al proyecto ────────────────────────────────────
+# ── Rutas de datos ────────────────────────────────────────────────────────────
+# En Docker se inyectan DATA_DIR y DB_PATH vía variables de entorno (docker-compose).
+# Localmente, si no están definidas, se usan los paths por defecto junto al proyecto.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-INPUT_JSON = str(PROJECT_ROOT / "resultados_bancolombia.jsonl")
-DB_PATH = str(PROJECT_ROOT / "chroma_banco_db")
+_DATA_DIR = Path(os.getenv("DATA_DIR", str(PROJECT_ROOT)))
+INPUT_JSON = str(_DATA_DIR / "resultados_bancolombia.jsonl")
+DB_PATH = os.getenv("DB_PATH", str(PROJECT_ROOT / "chroma_banco_db"))
 
 # ── Event loop en thread daemon ──────────────────────────────────────────────
 # Streamlit tiene su propio event loop; no podemos usar asyncio.run().
@@ -48,6 +52,38 @@ def _extract_text_from_content(content) -> str:
                 parts.append(block)
         return "".join(parts)
     return ""
+
+
+def _ensure_data_file() -> bool:
+    """Verifica que el JSONL exista y tenga contenido; si no, ejecuta el crawler.
+
+    Returns:
+        True si el archivo está listo para usarse, False si el crawler falló.
+    """
+    jsonl_path = Path(INPUT_JSON)
+
+    if jsonl_path.exists() and jsonl_path.stat().st_size > 0:
+        return True
+
+    # Archivo ausente o vacío → lanzar crawler
+    action = "creando" if not jsonl_path.exists() else "regenerando (archivo vacío)"
+    with st.status(f"Datos no encontrados — {action} la base de conocimiento...", expanded=True) as status:
+        st.write("Ejecutando crawler de Bancolombia. Esto puede tardar varios minutos...")
+        try:
+            pages = run_async(run_crawler(INPUT_JSON))
+            if pages == 0:
+                status.update(label="El crawler no obtuvo páginas.", state="error")
+                st.error("El crawler finalizó sin guardar páginas. Verifica la conectividad.")
+                return False
+            status.update(
+                label=f"Datos listos: {pages} páginas descargadas.",
+                state="complete",
+            )
+            return True
+        except Exception as exc:
+            status.update(label="Error durante el crawler.", state="error")
+            st.error(f"El crawler falló: {exc}")
+            return False
 
 
 # ── Inicialización única del agente ──────────────────────────────────────────
@@ -131,6 +167,10 @@ with st.sidebar:
         st.session_state.messages = []
         st.session_state.thread_id = f"streamlit_session_{id(object())}"
         st.rerun()
+
+# Verificar datos antes de inicializar el agente
+if not _ensure_data_file():
+    st.stop()
 
 # Inicializar agente (cacheado — solo corre la primera vez)
 agent = init_agent()

@@ -204,3 +204,7 @@ INFORME.md
 .kilo/
 .streamlit/
 PoC.ipynb
+
+# Directorio de datos en runtime (generado por crawler o crawler + Docker)
+data/
+!data/.gitkeep
