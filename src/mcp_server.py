@@ -1,3 +1,4 @@
+import os
 import json
 from pydantic import BaseModel
 from pathlib import Path
@@ -5,16 +6,18 @@ from mcp.server.fastmcp import FastMCP
 from database import VectorDBClient
 from langchain_chroma import Chroma
 
-# Fix #3: Ruta absoluta relativa al directorio del proyecto (padre de src/)
+# Configuración vía Variables de Env
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DB_PATH = str(PROJECT_ROOT / "chroma_banco_db")
+DB_PATH = os.getenv("DB_PATH", str(PROJECT_ROOT / "chroma_banco_db"))
+MCP_SERVER_NAME = os.getenv("MCP_SERVER_NAME", "BancolombiaKnowledgeServer")
+SEARCH_K_VALUE = int(os.getenv("SEARCH_K_VALUE", "3"))
 
 db_client = VectorDBClient(DB_PATH)
 vector_store = db_client.get_store()
 
-mcp = FastMCP("BancolombiaKnowledgeServer")
+mcp = FastMCP(MCP_SERVER_NAME)
 
-# Fix #2: Definición de modelos Pydantic para las respuestas de los tools
+# Definición de modelos Pydantic para las respuestas de los tools
 class KnowledgeBaseResponse(BaseModel):
     contenido: str
     fuentes: list[dict[str, str]] | list
@@ -36,7 +39,7 @@ def search_knowledge_base(query: str) -> KnowledgeBaseResponse:
         )
 
     try:
-        results = vector_store.similarity_search(query.strip(), k=3)
+        results = vector_store.similarity_search(query.strip(), k=SEARCH_K_VALUE)
 
         if not results:
             return KnowledgeBaseResponse(
@@ -119,52 +122,72 @@ def get_article_by_url(url: str) -> str:
 @mcp.tool()
 def list_categories() -> str:
     """Usa esta herramienta para listar las categorías de los artículos guardados en la base de datos."""
+    # Lista maestra de categorías definidas en el crawler
+    expected_categories = [
+        "Institucional / Corporativo",
+        "Inversionistas y Subsidiarias Financieras",
+        "Blog / Educación Financiera",
+        "Tu360 (Comercio y Marketplace)",
+        "Presencia Internacional",
+        "Productos y Servicios",
+        "Canales Digitales / Sucursales Virtuales",
+        "Otros / Landing"
+    ]
+    
+    found_categories = []
+    
     try:
-        all_data = vector_store.get(include=["metadatas"])
-        metadatas = all_data.get("metadatas", [])
+        # Alternativa 3: Verificación selectiva quirúrgica (RAM eficiente)
+        for cat in expected_categories:
+            # Consultamos solo si existe AL MENOS un documento para esta categoría
+            res = vector_store.get(where={"categoria": cat}, limit=1)
+            if res["ids"]:
+                found_categories.append(cat)
 
-        if not metadatas:
-            return "No hay datos indexados en la base de datos."
+        if not found_categories:
+            return "No se encontraron categorías con documentos indexados."
 
-        categories = set()
-        for meta in metadatas:
-            if meta:
-                cat = meta.get("categoria")
-                if cat and isinstance(cat, str) and cat.strip():
-                    categories.add(cat.strip())
-
-        if not categories:
-            return "No se encontraron categorías en los metadatos. Los documentos no tienen el campo 'categoria'."
-
-        return "Categorías disponibles:\n" + "\n".join(
-            f"- {c}" for c in sorted(categories)
+        return "Categorías disponibles en la base de datos:\n" + "\n".join(
+            f"- {c}" for c in sorted(found_categories)
         )
 
     except Exception as e:
-        return f"Error al listar categorías: {str(e)}"
+        return f"Error al listar categorías de forma segura: {str(e)}"
 
-@mcp.resource("knowledge-base://stats")
+@mcp.resource("knowledgebase://stats")
 def get_knowledge_base_stats() -> str:
     try:
-        # 1. Conteo rápido (O(1) en la mayoría de implementaciones vectoriales)
+        # Conteo total de chunks indexados
         doc_count = vector_store._collection.count()
-        
-        # 2. EFICIENCIA: Recuperar SOLO un documento para sacar la fecha y categorías
-        # En lugar de .get(include=["metadatas"]), pedimos un sample de 1.
+
+        # Fecha de último scraping: muestra de 1 documento (eficiente)
         sample_data = vector_store.get(limit=1, include=["metadatas"])
-        
         last_update = "No disponible"
         if sample_data["metadatas"]:
-            last_update = sample_data["metadatas"][0].get("scraped_at", "Fecha no disponible")
+            last_update = sample_data["metadatas"][0].get("scraped_at", "No disponible")
 
-        # 3. Para las categorías, si son pocas, podrías guardarlas en un JSON aparte 
-        # durante la indexación para no tener que iterar la DB aquí.
-        # Por ahora, si quieres ser eficiente, recupera una muestra representativa, no TODO.
-        
+        # Categorías disponibles: verificación quirúrgica por categoría conocida
+        # O(k) queries con limit=1 en lugar de traer todos los metadatos
+        expected_categories = [
+            "Institucional / Corporativo",
+            "Inversionistas y Subsidiarias Financieras",
+            "Blog / Educación Financiera",
+            "Tu360 (Comercio y Marketplace)",
+            "Presencia Internacional",
+            "Productos y Servicios",
+            "Canales Digitales / Sucursales Virtuales",
+            "Otros / Landing",
+        ]
+        categorias_disponibles = [
+            cat for cat in expected_categories
+            if vector_store.get(where={"categoria": cat}, limit=1)["ids"]
+        ]
+
         stats = {
             "documentos_indexados": doc_count,
-            "fecha_muestra_scraped": last_update,
-            "modelo_embeddings": db_client.get_embeddings_name()
+            "categorias_disponibles": categorias_disponibles,
+            "fecha_ultima_actualizacion": last_update,
+            "modelo_embeddings": db_client.get_embeddings_name(),
         }
         return json.dumps(stats, indent=2, ensure_ascii=False)
 

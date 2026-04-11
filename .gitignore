@@ -203,6 +203,7 @@ resultados_bancolombia.jsonl
 INFORME.md
 .kilo/
 .streamlit/
+.claude/
 PoC.ipynb
 
 # Directorio de datos en runtime (generado por crawler o crawler + Docker)

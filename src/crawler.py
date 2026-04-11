@@ -14,13 +14,20 @@ from crawl4ai.async_dispatcher import MemoryAdaptiveDispatcher
 
 logger = logging.getLogger(__name__)
 
-# Configuración Global
-# DATA_DIR permite sobreescribir la ubicación en Docker vía variable de entorno.
-# Localmente se usa el directorio de trabajo actual como fallback.
+# Configuración Global vía Variables de Entorno
 _DATA_DIR = os.getenv("DATA_DIR", ".")
-DEFAULT_OUTPUT_FILE = str(Path(_DATA_DIR) / "resultados_bancolombia.jsonl")
-SEED_URL = "https://www.bancolombia.com/personas"
-SKIP_PATTERNS = ["/!ut/p/", ".pdf", "contenthandler", "solicitud-turno.apps.", "segurodeviaje."]
+DEFAULT_OUTPUT_FILE = os.getenv("CRAWLER_OUTPUT_FILE", str(Path(_DATA_DIR) / "resultados_bancolombia.jsonl"))
+SEED_URL = os.getenv("CRAWLER_SEED_URL", "https://www.bancolombia.com/personas")
+# Patrones a omitir (convertidos de string separado por comas si existe)
+_SKIP_DEFAULT = "/!ut/p/,.pdf,contenthandler,solicitud-turno.apps.,segurodeviaje."
+# Solo incluimos patrones que tengan contenido real tras el split
+SKIP_PATTERNS = [p.strip() for p in os.getenv("CRAWLER_SKIP_PATTERNS", _SKIP_DEFAULT).split(",") if p.strip()]
+
+# Configuración de rendimiento
+MEMORY_THRESHOLD = float(os.getenv("CRAWLER_MEMORY_THRESHOLD", "80.0"))
+MAX_CONCURRENT_SESSIONS = int(os.getenv("CRAWLER_MAX_SESSIONS", "5"))
+MIN_DELAY = float(os.getenv("CRAWLER_MIN_DELAY", "2.0"))
+MAX_DELAY = float(os.getenv("CRAWLER_MAX_DELAY", "4.0"))
 
 
 def is_crawlable(url: str) -> bool:
@@ -129,10 +136,10 @@ async def run_crawler(output_file: str = DEFAULT_OUTPUT_FILE) -> int:
     )
 
     dispatcher = MemoryAdaptiveDispatcher(
-        memory_threshold_percent=80.0,
+        memory_threshold_percent=MEMORY_THRESHOLD,
         check_interval=1.0,
-        max_session_permit=5,
-        rate_limiter=RateLimiter(base_delay=(2.0, 4.0), max_delay=30.0, max_retries=2),
+        max_session_permit=MAX_CONCURRENT_SESSIONS,
+        rate_limiter=RateLimiter(base_delay=(MIN_DELAY, MAX_DELAY), max_delay=30.0, max_retries=2),
     )
 
     pages_saved = 0

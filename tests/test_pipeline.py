@@ -12,8 +12,9 @@ _PATCH_TARGET = "pipeline.VectorDBClient"
 def _make_mock_store():
     """Devuelve un mock_store y mock_client correctamente configurados."""
     mock_store = MagicMock()
-    # indexar_datos llama vector_store.get() para obtener URLs ya indexadas
-    mock_store.get.return_value = {"metadatas": []}
+    # indexar_datos llama vector_store.get() para verificar URLs ya indexadas
+    # ChromaDB devuelve un dict que contiene al menos 'ids', 'metadatas', 'documents'
+    mock_store.get.return_value = {"ids": [], "metadatas": [], "documents": []}
     mock_client = MagicMock()
     mock_client.get_store.return_value = mock_store
     return mock_store, mock_client

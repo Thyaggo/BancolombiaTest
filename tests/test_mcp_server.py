@@ -149,39 +149,28 @@ class TestListCategories:
 
     @patch("mcp_server.vector_store")
     def test_list_categories_found(self, mock_store):
-        """Retorna string con categorías ordenadas"""
-        mock_store.get.return_value = {
-            "metadatas": [
-                {"categoria": "Productos y Servicios"},
-                {"categoria": "Blog / Educación Financiera"},
-                {"categoria": "Productos y Servicios"},
-            ]
-        }
-
+        """Retorna string con categorías si se encuentran documentos"""
+        # Simulamos que encuentra una categoría y otra no
+        def side_effect(where=None, limit=None, **kwargs):
+            if where and where.get("categoria") == "Productos y Servicios":
+                return {"ids": ["123"]}
+            return {"ids": []}
+            
+        mock_store.get.side_effect = side_effect
+    
         result = list_categories()
-
-        assert "Categorías disponibles:" in result
+    
+        assert "Categorías disponibles" in result
         assert "Productos y Servicios" in result
-        assert "Blog / Educación Financiera" in result
+        assert "Blog / Educación Financiera" not in result
 
     @patch("mcp_server.vector_store")
     def test_list_categories_empty_db(self, mock_store):
-        """Sin metadatas retorna mensaje apropiado"""
-        mock_store.get.return_value = {"metadatas": []}
-
+        """Si ninguna categoría tiene documentos, retorna mensaje apropiado"""
+        mock_store.get.return_value = {"ids": []}
+    
         result = list_categories()
-
-        assert "No hay datos indexados" in result
-
-    @patch("mcp_server.vector_store")
-    def test_list_categories_no_category_field(self, mock_store):
-        """Metadatas sin campo categoria retorna mensaje apropiado"""
-        mock_store.get.return_value = {
-            "metadatas": [{"url": "https://test.com"}, {"url": "https://test2.com"}]
-        }
-
-        result = list_categories()
-
+    
         assert "No se encontraron categorías" in result
 
 
@@ -190,14 +179,18 @@ class TestGetKnowledgeBaseStats:
 
     @patch("mcp_server.vector_store")
     def test_stats_returns_valid_json(self, mock_store):
-        """Retorna JSON con estadísticas válidas"""
+        """Retorna JSON con estadísticas válidas incluyendo categorias_disponibles"""
         mock_store._collection.count.return_value = 50
-        mock_store.get.return_value = {
-            "metadatas": [
-                {"categoria": "Productos y Servicios"},
-                {"categoria": "Blog"},
-            ]
-        }
+
+        def get_side_effect(where=None, limit=None, include=None, **kwargs):
+            if where and where.get("categoria") == "Productos y Servicios":
+                return {"ids": ["abc"], "metadatas": [{"scraped_at": "2025-01-15 10:00:00"}]}
+            if where is None:
+                # llamada de muestra para fecha
+                return {"ids": [], "metadatas": [{"scraped_at": "2025-01-15 10:00:00"}]}
+            return {"ids": [], "metadatas": []}
+
+        mock_store.get.side_effect = get_side_effect
 
         result = get_knowledge_base_stats()
 
@@ -205,6 +198,9 @@ class TestGetKnowledgeBaseStats:
         assert data["documentos_indexados"] == 50
         assert "modelo_embeddings" in data
         assert data["modelo_embeddings"] == "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+        assert "categorias_disponibles" in data
+        assert isinstance(data["categorias_disponibles"], list)
+        assert "fecha_ultima_actualizacion" in data
 
     @patch("mcp_server.vector_store")
     def test_stats_handles_exception(self, mock_store):

@@ -2,6 +2,7 @@ import sys
 import os
 import asyncio
 import threading
+import uuid
 from pathlib import Path
 
 import streamlit as st
@@ -14,12 +15,11 @@ from pipeline import BancolombiaPipeline
 from crawler import run_crawler
 
 # ── Rutas de datos ────────────────────────────────────────────────────────────
-# En Docker se inyectan DATA_DIR y DB_PATH vía variables de entorno (docker-compose).
-# Localmente, si no están definidas, se usan los paths por defecto junto al proyecto.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _DATA_DIR = Path(os.getenv("DATA_DIR", str(PROJECT_ROOT)))
-INPUT_JSON = str(_DATA_DIR / "resultados_bancolombia.jsonl")
+INPUT_JSON = os.getenv("CRAWLER_OUTPUT_FILE", str(_DATA_DIR / "resultados_bancolombia.jsonl"))
 DB_PATH = os.getenv("DB_PATH", str(PROJECT_ROOT / "chroma_banco_db"))
+STREAMLIT_SESSION_PREFIX = os.getenv("STREAMLIT_SESSION_PREFIX", "streamlit_session")
 
 # ── Event loop en thread daemon ──────────────────────────────────────────────
 # Streamlit tiene su propio event loop; no podemos usar asyncio.run().
@@ -158,14 +158,15 @@ st.caption("Consulta información sobre productos, servicios y más de Bancolomb
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "thread_id" not in st.session_state:
-    st.session_state.thread_id = "streamlit_session_001"
+    st.session_state.thread_id = str(uuid.uuid4())
 
 # Sidebar
 with st.sidebar:
     st.header("Opciones")
     if st.button("Nueva conversación"):
         st.session_state.messages = []
-        st.session_state.thread_id = f"streamlit_session_{id(object())}"
+        # Generamos un nuevo UUID para resetear el hilo en el agente
+        st.session_state.thread_id = str(uuid.uuid4())
         st.rerun()
 
 # Verificar datos antes de inicializar el agente

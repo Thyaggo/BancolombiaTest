@@ -1,0 +1,33 @@
+# Dependencias mínimas para ejecutar los tests en CI.
+# No incluye paquetes de GPU/CUDA ni modelos pesados — los tests mockean todo lo pesado.
+
+# Test runner
+pytest
+pytest-cov
+pytest-asyncio
+
+# Linter
+ruff
+
+# Core
+pydantic>=2.0
+python-dotenv
+
+# LangChain (importado en src/)
+langchain-core
+langchain-chroma
+langchain-huggingface
+langchain-google-genai
+langchain-mcp-adapters
+
+# Vector DB (mockeado en tests, pero necesario para importar database.py)
+chromadb
+
+# Embeddings — solo el paquete Python, sin descarga de modelos ni GPU
+sentence-transformers
+
+# MCP server
+mcp
+
+# Crawler (is_crawlable, categorizar_url usadas en test_crawler.py)
+crawl4ai
