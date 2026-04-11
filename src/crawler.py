@@ -15,8 +15,8 @@ from crawl4ai.async_dispatcher import MemoryAdaptiveDispatcher
 logger = logging.getLogger(__name__)
 
 # Configuración Global vía Variables de Entorno
-_DATA_DIR = os.getenv("DATA_DIR", ".")
-DEFAULT_OUTPUT_FILE = os.getenv("CRAWLER_OUTPUT_FILE", str(Path(_DATA_DIR) / "resultados_bancolombia.jsonl"))
+_DATA_DIR = os.getenv("DATA_DIR") or "."
+DEFAULT_OUTPUT_FILE = os.getenv("CRAWLER_OUTPUT_FILE") or str(Path(_DATA_DIR) / "resultados_bancolombia.jsonl")
 SEED_URL = os.getenv("CRAWLER_SEED_URL", "https://www.bancolombia.com/personas")
 # Patrones a omitir (convertidos de string separado por comas si existe)
 _SKIP_DEFAULT = "/!ut/p/,.pdf,contenthandler,solicitud-turno.apps.,segurodeviaje."

@@ -9,8 +9,8 @@ from crawler import run_crawler
 
 # ── Rutas de datos ─────────────────────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-_DATA_DIR = Path(os.getenv("DATA_DIR", str(PROJECT_ROOT)))
-INPUT_JSON = os.getenv("CRAWLER_OUTPUT_FILE", str(_DATA_DIR / "resultados_bancolombia.jsonl"))
+_DATA_DIR = Path(os.getenv("DATA_DIR") or str(PROJECT_ROOT))
+INPUT_JSON = os.getenv("CRAWLER_OUTPUT_FILE") or str(_DATA_DIR / "resultados_bancolombia.jsonl")
 DB_PATH = os.getenv("DB_PATH", str(PROJECT_ROOT / "chroma_banco_db"))
 USER_THREAD_ID = os.getenv("USER_THREAD_ID", "user_session_001")
 

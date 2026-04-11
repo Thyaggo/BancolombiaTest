@@ -15,12 +15,12 @@ from langgraph.checkpoint.memory import InMemorySaver
 from database import VectorDBClient
 
 # Configuración vía Variables de Entorno
-DEFAULT_BATCH_SIZE = int(os.getenv("INDEX_BATCH_SIZE", "50"))
-DEFAULT_CHUNK_SIZE = int(os.getenv("INDEX_CHUNK_SIZE", "1500"))
-DEFAULT_CHUNK_OVERLAP = int(os.getenv("INDEX_CHUNK_OVERLAP", "300"))
+DEFAULT_BATCH_SIZE = int(os.getenv("INDEX_BATCH_SIZE", 50))
+DEFAULT_CHUNK_SIZE = int(os.getenv("INDEX_CHUNK_SIZE", 1500))
+DEFAULT_CHUNK_OVERLAP = int(os.getenv("INDEX_CHUNK_OVERLAP", 30))
 LLM_MODEL_NAME = os.getenv("LLM_MODEL", "google_genai:gemini-3.1-flash-lite-preview")
-HISTORY_SUMMARIZATION_THRESHOLD = int(os.getenv("HISTORY_THRESHOLD", "3000"))
-HISTORY_KEEP_COUNT = int(os.getenv("HISTORY_KEEP", "10"))
+HISTORY_SUMMARIZATION_THRESHOLD = int(os.getenv("HISTORY_THRESHOLD", 3000))
+HISTORY_KEEP_COUNT = int(os.getenv("HISTORY_KEEP", 10))
 
 SYSTEM_PROMPT = os.getenv(
     "AGENT_SYSTEM_PROMPT",
