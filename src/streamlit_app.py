@@ -62,8 +62,15 @@ def _ensure_data_file() -> bool:
     """
     jsonl_path = Path(INPUT_JSON)
 
-    if jsonl_path.exists() and jsonl_path.stat().st_size > 0:
+    if jsonl_path.is_file() and jsonl_path.stat().st_size > 0:
         return True
+
+    if jsonl_path.is_dir():
+        st.error(
+            f"La ruta '{INPUT_JSON}' apunta a un directorio, no a un archivo JSONL. "
+            "Revisa DATA_DIR y CRAWLER_OUTPUT_FILE en tu archivo .env."
+        )
+        return False
 
     # Archivo ausente o vacío → lanzar crawler
     action = "creando" if not jsonl_path.exists() else "regenerando (archivo vacío)"

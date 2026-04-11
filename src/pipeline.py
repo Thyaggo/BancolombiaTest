@@ -58,6 +58,11 @@ class BancolombiaPipeline:
         """Lee el JSONL, filtra registros válidos e indexa en ChromaDB de forma eficiente."""
         if not os.path.exists(self.input_file):
             raise FileNotFoundError(f"Archivo {self.input_file} no encontrado.")
+        if os.path.isdir(self.input_file):
+            raise IsADirectoryError(
+                f"'{self.input_file}' es un directorio. "
+                "Revisa DATA_DIR y CRAWLER_OUTPUT_FILE en tu .env — deben apuntar al archivo JSONL, no a su carpeta."
+            )
 
         if force_reindex:
             self.vector_store.delete_collection()

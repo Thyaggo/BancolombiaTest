@@ -52,8 +52,15 @@ def _extract_text_from_content(content) -> str:
 async def _ensure_data_file() -> None:
     """Verifica que el JSONL exista y tenga contenido; si no, ejecuta el crawler."""
     jsonl_path = Path(INPUT_JSON)
-    if jsonl_path.exists() and jsonl_path.stat().st_size > 0:
+    if jsonl_path.is_file() and jsonl_path.stat().st_size > 0:
         return
+
+    if jsonl_path.is_dir():
+        print(
+            f"[ERROR] La ruta '{INPUT_JSON}' apunta a un directorio, no a un archivo JSONL. "
+            "Revisa DATA_DIR y CRAWLER_OUTPUT_FILE en tu archivo .env."
+        )
+        sys.exit(1)
 
     action = "creando" if not jsonl_path.exists() else "regenerando (archivo vacío)"
     print(f"\n[INFO] Datos no encontrados — {action} la base de conocimiento...")
