@@ -41,51 +41,7 @@ El usuario puede interactuar via una **interfaz web** (Streamlit) o una **CLI** 
 
 ## Arquitectura general
 
-```
-                                    +-------------------+
-                                    |   Usuario final   |
-                                    +--------+----------+
-                                             |
-                              +--------------+--------------+
-                              |                             |
-                    +---------v---------+        +----------v---------+
-                    |  streamlit_app.py |        |      main.py       |
-                    |   (Interfaz Web)  |        |   (Interfaz CLI)   |
-                    +---------+---------+        +----------+---------+
-                              |                             |
-                              +-------------+---------------+
-                                            |
-                                  +---------v----------+
-                                  |    pipeline.py     |
-                                  | (Orquestador)      |
-                                  |  - indexar_datos() |
-                                  |  - crear agente    |
-                                  +---------+----------+
-                                            |
-                         +------------------+------------------+
-                         |                                     |
-              +----------v-----------+              +----------v-----------+
-              |   Agente LangChain   |              |    Indexacion        |
-              |   (create_agent)     |              |  JSONL -> ChromaDB   |
-              +----------+-----------+              +----------+-----------+
-                         |                                     |
-                         | invoca tools via MCP                |
-                         |                                     |
-              +----------v-----------+              +----------v-----------+
-              |   mcp_server.py      |              |    database.py       |
-              |  (Servidor MCP)      |              |  (VectorDBClient)    |
-              |  - search_kb         +------+------>+  - ChromaDB          |
-              |  - get_article       |      |       |  - HuggingFace      |
-              |  - list_categories   |      |       |    Embeddings       |
-              +----------------------+      |       +----------------------+
-                                            |
-                                  +---------v----------+
-                                  |    crawler.py      |
-                                  | (Web Scraping)     |
-                                  |  Crawl4AI +        |
-                                  |  Playwright        |
-                                  +--------------------+
-```
+<img src="assets/arq.png" width="500">
 
 ---
 
@@ -93,39 +49,19 @@ El usuario puede interactuar via una **interfaz web** (Streamlit) o una **CLI** 
 
 ### Fase 1: Extraccion de datos (Crawler)
 
-```
-bancolombia.com  -->  Crawl4AI + Playwright  -->  resultados_bancolombia.jsonl
-     (web)            (headless browser)           (JSONL, 1 linea por pagina)
-```
+<img src="assets/Crawler.png" width="725">
 
 El crawler (`crawler.py`) navega `bancolombia.com/personas`, extrae todos los enlaces internos, los filtra y descarga cada pagina. El contenido HTML se convierte a **Markdown filtrado** (`fit_markdown`) usando la estrategia `PruningContentFilter` que elimina boilerplate (headers, footers, navs). Cada pagina se persiste como una linea JSON con metadata (URL, titulo, categoria, fecha).
 
 ### Fase 2: Indexacion (Pipeline)
 
-```
-resultados_bancolombia.jsonl  -->  Text Splitter  -->  Embeddings  -->  ChromaDB
-     (archivo plano)              (chunks 1500 chars)   (MiniLM-L12)    (vectores)
-```
+<img src="assets/idx.png" width="1000">
 
 `pipeline.py` lee el JSONL linea a linea, divide el contenido en chunks de 1500 caracteres con overlap de 300, genera embeddings con el modelo `paraphrase-multilingual-MiniLM-L12-v2`, e indexa los vectores en ChromaDB. Se usa procesamiento por lotes de 50 documentos para optimizar I/O.
 
 ### Fase 3: Consulta (Agente)
 
-```
-Pregunta del usuario
-       |
-       v
-  Agente LangChain (Gemini Flash)
-       |
-       |-- decide invocar tool --> MCP Server --> ChromaDB (similarity_search)
-       |                                |
-       |                                v
-       |                          KnowledgeBaseResponse
-       |                          {contenido, fuentes[]}
-       |
-       v
-  Respuesta final + Fuentes consultadas
-```
+<img src="assets/agent.png" width="700">
 
 El agente recibe la pregunta, decide si necesita consultar la base de conocimiento invocando herramientas MCP. La herramienta `search_knowledge_base` retorna los fragmentos relevantes junto con las **URLs de las fuentes**. El agente sintetiza una respuesta y el sistema muestra las fuentes al usuario.
 
@@ -245,16 +181,6 @@ Durante el streaming de eventos del agente, intercepta:
 
 RAG es el patron arquitectonico central del sistema. En lugar de depender exclusivamente del conocimiento parametrico del LLM, el agente **recupera informacion relevante** de una base de datos externa antes de generar su respuesta.
 
-```
-      Pregunta
-         |
-    +----v-----+       +-------------+       +-----------+
-    |  Retrieval| ----> | Augmentation| ----> | Generation|
-    |  (ChromaDB|       | (contexto + |       | (Gemini   |
-    |  search)  |       |  pregunta)  |       |  Flash)   |
-    +-----------+       +-------------+       +-----------+
-```
-
 **Ventajas en este proyecto:**
 - El LLM no necesita estar entrenado en datos especificos de Bancolombia.
 - La informacion se actualiza re-ejecutando el crawler sin reentrenar el modelo.
@@ -268,18 +194,7 @@ MCP es un protocolo abierto creado por Anthropic que estandariza como los modelo
 - **Cliente MCP** (`MultiServerMCPClient` en `pipeline.py`): Conecta al servidor via `stdio` (subproceso) y registra las herramientas en el agente LangChain.
 - **Transporte stdio**: El servidor MCP se ejecuta como un subproceso Python. La comunicacion se hace via stdin/stdout con mensajes JSON-RPC.
 
-```
-pipeline.py                     mcp_server.py
-    |                                |
-    |--- spawn subprocess ---------> |
-    |                                |
-    |--- JSON-RPC (stdin) ---------> |
-    |    "search_knowledge_base"     |
-    |                                |--- query ChromaDB
-    |                                |<-- results
-    |<-- JSON-RPC (stdout) --------- |
-    |    KnowledgeBaseResponse       |
-```
+<img src="assets/mcp.png" width="525">
 
 **Por que MCP y no herramientas directas?**
 - Desacopla la logica de acceso a datos del agente.

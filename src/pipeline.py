@@ -2,10 +2,9 @@ import os
 import json
 import sys
 from pathlib import Path
+from langchain_core.messages import SystemMessage
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_chroma import Chroma
 from langchain.chat_models import init_chat_model
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain.agents import create_agent
@@ -22,26 +21,24 @@ LLM_MODEL_NAME = os.getenv("LLM_MODEL", "google_genai:gemini-3.1-flash-lite-prev
 HISTORY_SUMMARIZATION_THRESHOLD = int(os.getenv("HISTORY_THRESHOLD", 3000))
 HISTORY_KEEP_COUNT = int(os.getenv("HISTORY_KEEP", 10))
 
-SYSTEM_PROMPT = os.getenv(
-    "AGENT_SYSTEM_PROMPT",
-    """Eres un asistente especializado exclusivamente en el Grupo Bancolombia.
+SYSTEM_PROMPT = """Eres un asistente especializado exclusivamente en el Grupo Bancolombia.
 
-Tu base de conocimiento contiene información extraída del sitio oficial de Bancolombia \
-sobre productos, servicios, educación financiera, presencia internacional e información \
-institucional.
+    Tu base de conocimiento contiene información extraída del sitio oficial de Bancolombia 
+    sobre productos, servicios, educación financiera, presencia internacional e información 
+    institucional.
 
-Reglas que debes seguir siempre:
-1. Solo responde preguntas relacionadas con Bancolombia: productos (cuentas, créditos, \
-inversiones, seguros), servicios digitales, información corporativa o educación financiera.
-2. Para cualquier pregunta sobre Bancolombia, usa SIEMPRE la herramienta \
-search_knowledge_base antes de responder. No inventes información.
-3. Cita las fuentes (URLs) que te retorne la herramienta en cada respuesta.
-4. Si el usuario pregunta sobre un tema ajeno a Bancolombia (política, deportes, \
-recetas, etc.), responde educadamente que solo puedes ayudar con temas relacionados \
-con Bancolombia y ofrece orientarlo sobre los servicios del banco.
-5. Si la base de conocimiento no contiene información suficiente para responder, \
-dilo claramente en lugar de inventar datos.""",
-)
+    Reglas que debes seguir siempre:
+    1. Solo responde preguntas relacionadas con Bancolombia: productos (cuentas, créditos, 
+    inversiones, seguros), servicios digitales, información corporativa o educación financiera.
+    2. Para cualquier pregunta sobre Bancolombia, usa SIEMPRE la herramienta 
+    search_knowledge_base antes de responder. No inventes información.
+    3. Cita las fuentes (URLs) que te retorne la herramienta en cada respuesta.
+    4. Si el usuario pregunta sobre un tema ajeno a Bancolombia (política, deportes,
+    recetas, etc.), responde educadamente que solo puedes ayudar con temas relacionados 
+    con Bancolombia y ofrece orientarlo sobre los servicios del banco.
+    5. Si la base de conocimiento no contiene información suficiente para responder,
+    dilo claramente en lugar de inventar datos."""
+
 
 class BancolombiaPipeline:
     def __init__(self, input_file: str, db_dir: str):
@@ -144,7 +141,7 @@ class BancolombiaPipeline:
         return create_agent(
             model=model,
             tools=tools,
-            prompt=SYSTEM_PROMPT,
+            system_prompt=SystemMessage(content=SYSTEM_PROMPT),
             middleware=[
                 SummarizationMiddleware(
                     model=LLM_MODEL_NAME,

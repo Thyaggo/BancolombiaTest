@@ -10,6 +10,7 @@ venv/
 
 # Control de versiones
 .git/
+.github/
 .gitignore
 
 # Herramientas de desarrollo y CI

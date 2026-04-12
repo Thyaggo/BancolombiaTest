@@ -22,16 +22,22 @@ DB_PATH = os.getenv("DB_PATH", str(PROJECT_ROOT / "chroma_banco_db"))
 STREAMLIT_SESSION_PREFIX = os.getenv("STREAMLIT_SESSION_PREFIX", "streamlit_session")
 
 # ── Event loop en thread daemon ──────────────────────────────────────────────
-# Streamlit tiene su propio event loop; no podemos usar asyncio.run().
-# Creamos un loop separado en un thread background y enviamos coroutines ahí.
-_loop = asyncio.new_event_loop()
-threading.Thread(target=_loop.run_forever, daemon=True).start()
+# Streamlit re-ejecuta el script en cada rerender, por lo que cualquier
+# variable de módulo (como _loop) se recrea en cada pasada. Usar
+# @st.cache_resource garantiza que el loop se cree UNA SOLA VEZ por
+# lifetime de la app, evitando el "Future attached to a different loop"
+# que ocurre cuando el agente (también cacheado) usa sesiones aiohttp
+# ligadas al loop original mientras run_async ya apunta a uno nuevo.
+@st.cache_resource
+def _get_event_loop() -> asyncio.AbstractEventLoop:
+    loop = asyncio.new_event_loop()
+    threading.Thread(target=loop.run_forever, daemon=True).start()
+    return loop
 
 
 def run_async(coro):
     """Ejecuta una coroutine en el event loop background y bloquea hasta obtener resultado."""
-    future = asyncio.run_coroutine_threadsafe(coro, _loop)
-    return future.result()
+    return asyncio.run_coroutine_threadsafe(coro, _get_event_loop()).result()
 
 
 def _extract_text_from_content(content) -> str:

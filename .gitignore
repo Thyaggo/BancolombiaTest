@@ -204,7 +204,7 @@ INFORME.md
 .kilo/
 .streamlit/
 .claude/
-PoC.ipynb
+*.ipynb
 
 # Directorio de datos en runtime (generado por crawler o crawler + Docker)
 data/
