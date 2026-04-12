@@ -1,5 +1,4 @@
-import pytest
-from crawler import is_crawlable, categorizar_url
+from crawler import categorizar_url, is_crawlable
 
 
 class TestIsCrawlable:

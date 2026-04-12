@@ -1,6 +1,6 @@
-import pytest
 from unittest.mock import MagicMock, patch
-from database import VectorDBClient, COLLECTION_NAME, EMBEDDINGS_MODEL
+
+from database import COLLECTION_NAME, EMBEDDINGS_MODEL, VectorDBClient
 
 
 class TestVectorDBClient:

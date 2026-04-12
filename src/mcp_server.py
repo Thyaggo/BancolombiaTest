@@ -1,10 +1,11 @@
-import os
 import json
-from pydantic import BaseModel
+import os
 from pathlib import Path
+
 from mcp.server.fastmcp import FastMCP
+from pydantic import BaseModel
+
 from database import VectorDBClient
-from langchain_chroma import Chroma
 
 # Configuración vía Variables de Env
 PROJECT_ROOT = Path(__file__).resolve().parent.parent

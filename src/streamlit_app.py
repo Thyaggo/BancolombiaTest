@@ -1,6 +1,6 @@
-import sys
-import os
 import asyncio
+import os
+import sys
 import threading
 import uuid
 from pathlib import Path
@@ -11,8 +11,8 @@ from dotenv import load_dotenv
 # Asegurar que src/ esté en sys.path para importar pipeline y crawler
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from pipeline import BancolombiaPipeline
 from crawler import run_crawler
+from pipeline import BancolombiaPipeline
 
 # ── Rutas de datos ────────────────────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).resolve().parent.parent

@@ -1,4 +1,3 @@
-import pytest
 from main import _extract_text_from_content
 
 

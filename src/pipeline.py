@@ -1,14 +1,15 @@
-import os
 import json
+import os
 import sys
 from pathlib import Path
-from langchain_core.messages import SystemMessage
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_core.documents import Document
-from langchain.chat_models import init_chat_model
-from langchain_mcp_adapters.client import MultiServerMCPClient
+
 from langchain.agents import create_agent
 from langchain.agents.middleware import SummarizationMiddleware
+from langchain.chat_models import init_chat_model
+from langchain_core.documents import Document
+from langchain_core.messages import SystemMessage
+from langchain_mcp_adapters.client import MultiServerMCPClient
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langgraph.checkpoint.memory import InMemorySaver
 
 from database import VectorDBClient
@@ -73,11 +74,13 @@ class BancolombiaPipeline:
         with open(self.input_file, "r", encoding="utf-8") as f:
             for line_num, line in enumerate(f, start=1):
                 line = line.strip()
-                if not line: continue
+                if not line:
+                    continue
 
                 try:
                     p = json.loads(line)
-                except json.JSONDecodeError: continue
+                except json.JSONDecodeError:
+                    continue
 
                 url = p.get("url", "").strip()
                 fit_markdown = p.get("fit_markdown", "").strip()

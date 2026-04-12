@@ -1,11 +1,12 @@
 import asyncio
-import json
-import sys
 import os
+import sys
 from pathlib import Path
+
 from dotenv import load_dotenv
-from pipeline import BancolombiaPipeline
+
 from crawler import run_crawler
+from pipeline import BancolombiaPipeline
 
 # ── Rutas de datos ─────────────────────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
