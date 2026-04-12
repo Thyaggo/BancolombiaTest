@@ -5,12 +5,11 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Crawl4AI
-from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode, RateLimiter
+from crawl4ai import AsyncWebCrawler, BrowserConfig, CacheMode, CrawlerRunConfig, RateLimiter
+from crawl4ai.async_dispatcher import MemoryAdaptiveDispatcher
+from crawl4ai.content_filter_strategy import PruningContentFilter
 from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
 from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
-from crawl4ai.content_filter_strategy import PruningContentFilter
-from crawl4ai.async_dispatcher import MemoryAdaptiveDispatcher
 
 logger = logging.getLogger(__name__)
 

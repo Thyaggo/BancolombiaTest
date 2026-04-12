@@ -3,10 +3,10 @@ from unittest.mock import MagicMock, patch
 
 from mcp_server import (
     KnowledgeBaseResponse,
-    search_knowledge_base,
     get_article_by_url,
-    list_categories,
     get_knowledge_base_stats,
+    list_categories,
+    search_knowledge_base,
 )
 
 

@@ -1,7 +1,7 @@
 import json
+from unittest.mock import MagicMock, patch
 
 import pytest
-from unittest.mock import MagicMock, patch
 
 # Importar una vez aquí para que el parche use el nombre correcto del módulo
 from pipeline import BancolombiaPipeline
