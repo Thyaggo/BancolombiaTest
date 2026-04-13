@@ -12,7 +12,7 @@ services:
       # y ejecuta el crawler automáticamente.
       - ./data:/app/data
       # ./chroma_banco_db → persistencia de la base vectorial entre reinicios.
-      - ./chroma_banco_db:/app/chroma_banco_db
+      - ./vector_store:/app/chroma_banco_db
     env_file:
       - .env
     environment:

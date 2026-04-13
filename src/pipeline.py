@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import sys
 from pathlib import Path
@@ -11,8 +12,16 @@ from langchain_core.messages import SystemMessage
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langgraph.checkpoint.memory import InMemorySaver
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from database import VectorDBClient
+
+logger = logging.getLogger(__name__)
 
 # Configuración vía Variables de Entorno
 DEFAULT_BATCH_SIZE = int(os.getenv("INDEX_BATCH_SIZE", 50))
@@ -21,6 +30,9 @@ DEFAULT_CHUNK_OVERLAP = int(os.getenv("INDEX_CHUNK_OVERLAP", 30))
 LLM_MODEL_NAME = os.getenv("LLM_MODEL", "google_genai:gemini-3.1-flash-lite-preview")
 HISTORY_SUMMARIZATION_THRESHOLD = int(os.getenv("HISTORY_THRESHOLD", 3000))
 HISTORY_KEEP_COUNT = int(os.getenv("HISTORY_KEEP", 10))
+MCP_MAX_RETRIES = int(os.getenv("MCP_MAX_RETRIES", 3))
+MCP_RETRY_MIN_WAIT = float(os.getenv("MCP_RETRY_MIN_WAIT", 1.0))
+MCP_RETRY_MAX_WAIT = float(os.getenv("MCP_RETRY_MAX_WAIT", 10.0))
 
 SYSTEM_PROMPT = """Eres un asistente especializado exclusivamente en el Grupo Bancolombia.
 
@@ -138,13 +150,42 @@ class BancolombiaPipeline:
                 }
             }
         )
+        
+        # Manejo de time retries
+        _retry = retry(
+            retry=retry_if_exception_type(Exception),
+            stop=stop_after_attempt(MCP_MAX_RETRIES),
+            wait=wait_exponential(min=MCP_RETRY_MIN_WAIT, max=MCP_RETRY_MAX_WAIT),
+            reraise=True,
+        )
 
-        tools = await client.get_tools()
+        # get_resources es no-crítico: si falla, el agente arranca sin stats
+        try:
+            resources = await _retry(client.get_resources)(
+                server_name="bancolombia_tools",
+                uris=["knowledge-base://stats"],
+            )
+        except Exception as e:
+            logger.warning("No se pudieron obtener las stats de la base de conocimiento: %s", e)
+            resources = []
+
+        # get_tools es crítico: sin herramientas el agente no puede operar
+        try:
+            tools = await _retry(client.get_tools)()
+        except Exception as e:
+            raise RuntimeError(
+                "No se pudo conectar al servidor MCP tras "
+                f"{MCP_MAX_RETRIES} intentos: {e}"
+            ) from e
+
+        prompt_content = SYSTEM_PROMPT
+        if resources:
+            prompt_content += f"\n\nEstado actual de la base de conocimiento:\n{resources[0].as_string()}"
 
         return create_agent(
             model=model,
             tools=tools,
-            system_prompt=SystemMessage(content=SYSTEM_PROMPT),
+            system_prompt=SystemMessage(content=prompt_content),
             middleware=[
                 SummarizationMiddleware(
                     model=LLM_MODEL_NAME,

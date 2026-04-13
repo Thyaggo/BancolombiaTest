@@ -12,6 +12,7 @@ ruff
 # Core
 pydantic>=2.0
 python-dotenv
+tenacity
 
 # LangChain (importado en src/)
 langchain-core

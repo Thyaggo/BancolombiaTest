@@ -20,13 +20,13 @@ SEED_URL = os.getenv("CRAWLER_SEED_URL", "https://www.bancolombia.com/personas")
 # Patrones a omitir (convertidos de string separado por comas si existe)
 _SKIP_DEFAULT = "/!ut/p/,.pdf,contenthandler,solicitud-turno.apps.,segurodeviaje."
 # Solo incluimos patrones que tengan contenido real tras el split
-SKIP_PATTERNS = [p.strip() for p in os.getenv("CRAWLER_SKIP_PATTERNS", _SKIP_DEFAULT).split(",") if p.strip()]
+SKIP_PATTERNS = [p.strip() for p in _SKIP_DEFAULT.split(",") if p.strip()]
 
 # Configuración de rendimiento
-MEMORY_THRESHOLD = float(os.getenv("CRAWLER_MEMORY_THRESHOLD", "80.0"))
-MAX_CONCURRENT_SESSIONS = int(os.getenv("CRAWLER_MAX_SESSIONS", "5"))
-MIN_DELAY = float(os.getenv("CRAWLER_MIN_DELAY", "2.0"))
-MAX_DELAY = float(os.getenv("CRAWLER_MAX_DELAY", "4.0"))
+MEMORY_THRESHOLD = float(os.getenv("CRAWLER_MEMORY_THRESHOLD", 80.0))
+MAX_CONCURRENT_SESSIONS = int(os.getenv("CRAWLER_MAX_SESSIONS", 5))
+MIN_DELAY = float(os.getenv("CRAWLER_MIN_DELAY", 2.0))
+MAX_DELAY = float(os.getenv("CRAWLER_MAX_DELAY", 4.0))
 
 
 def is_crawlable(url: str) -> bool:
@@ -127,7 +127,7 @@ async def run_crawler(output_file: str = DEFAULT_OUTPUT_FILE) -> int:
             options={"ignore_links": False, "body_width": 0},
         ),
         cache_mode=CacheMode.BYPASS,
-        check_robots_txt=False,
+        check_robots_txt=False, #Estrategia de respeto a robots.txt
         magic=True,
         page_timeout=90000,
         stream=True,

@@ -11,7 +11,7 @@ from database import VectorDBClient
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = os.getenv("DB_PATH", str(PROJECT_ROOT / "chroma_banco_db"))
 MCP_SERVER_NAME = os.getenv("MCP_SERVER_NAME", "BancolombiaKnowledgeServer")
-SEARCH_K_VALUE = int(os.getenv("SEARCH_K_VALUE", "3"))
+SEARCH_K_VALUE = int(os.getenv("SEARCH_K_VALUE", 3))
 
 db_client = VectorDBClient(DB_PATH)
 vector_store = db_client.get_store()
@@ -155,7 +155,7 @@ def list_categories() -> str:
     except Exception as e:
         return f"Error al listar categorías de forma segura: {str(e)}"
 
-@mcp.resource("knowledgebase://stats")
+@mcp.resource("knowledge-base://stats")
 def get_knowledge_base_stats() -> str:
     try:
         # Conteo total de chunks indexados

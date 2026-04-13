@@ -8,9 +8,6 @@ from pathlib import Path
 import streamlit as st
 from dotenv import load_dotenv
 
-# Asegurar que src/ esté en sys.path para importar pipeline y crawler
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
 from crawler import run_crawler
 from pipeline import BancolombiaPipeline
 
@@ -206,24 +203,15 @@ if prompt := st.chat_input("¿En qué puedo ayudarte?"):
         with st.spinner("Pensando..."):
             result = query_agent(agent, prompt, st.session_state.thread_id)
             respuesta = result["respuesta"]
-            fuentes = result["fuentes"]
 
             st.markdown(respuesta)
 
-            if fuentes:
-                st.markdown("---")
-                st.markdown("**Fuentes consultadas:**")
-                for fuente in fuentes:
-                    titulo = fuente.get("titulo", "Sin título")
-                    url = fuente.get("url", "")
-                    st.markdown(f"- [{titulo}]({url})")
-
     # Guardar en historial incluyendo fuentes como markdown
     content_for_history = respuesta
-    if fuentes:
-        links = "\n".join(
-            f"- [{f.get('titulo', 'Sin título')}]({f.get('url', '')})"
-            for f in fuentes
-        )
-        content_for_history += f"\n\n---\n**Fuentes consultadas:**\n{links}"
+    # if fuentes:
+    #     links = "\n".join(
+    #         f"- [{f.get('titulo', 'Sin título')}]({f.get('url', '')})"
+    #         for f in fuentes
+    #     )
+    #     content_for_history += f"\n\n---\n**Fuentes consultadas:**\n{links}"
     st.session_state.messages.append({"role": "assistant", "content": content_for_history})

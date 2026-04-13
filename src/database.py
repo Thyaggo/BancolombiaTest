@@ -3,12 +3,17 @@ import os
 
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)
 
 # Configuración vía Variables de Entorno
 EMBEDDINGS_MODEL = os.getenv("EMBEDDINGS_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
 COLLECTION_NAME = os.getenv("CHROMA_COLLECTION", "bancolombia_docs")
+MCP_MAX_RETRIES = int(os.getenv("MCP_MAX_RETRIES", 3))
+MCP_RETRY_MIN_WAIT = float(os.getenv("MCP_RETRY_MIN_WAIT", 1.0))
+MCP_RETRY_MAX_WAIT = float(os.getenv("MCP_RETRY_MAX_WAIT", 10.0))
+
 
 class VectorDBClient:
     """Manejador centralizado para la base vectorial ChromaDB."""
@@ -20,12 +25,14 @@ class VectorDBClient:
         self._embeddings = None
         self._vector_store = None
 
+    @retry(stop=stop_after_attempt(MCP_MAX_RETRIES), wait=wait_exponential(min=MCP_RETRY_MIN_WAIT, max=MCP_RETRY_MAX_WAIT), reraise=True)
     def _get_embeddings(self) -> HuggingFaceEmbeddings:
         if self._embeddings is None:
             logger.info(f"Cargando modelo de embeddings: {EMBEDDINGS_MODEL}")
             self._embeddings = HuggingFaceEmbeddings(model_name=EMBEDDINGS_MODEL)
         return self._embeddings
 
+    @retry(stop=stop_after_attempt(MCP_MAX_RETRIES), wait=wait_exponential(min=MCP_RETRY_MIN_WAIT, max=MCP_RETRY_MAX_WAIT), reraise=True)
     def get_store(self) -> Chroma:
         if self._vector_store is None:
             logger.info(f"Conectando a ChromaDB en: {self.db_path}")
