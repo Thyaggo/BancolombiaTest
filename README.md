@@ -23,6 +23,7 @@
 7. [Estructura de archivos](#estructura-de-archivos)
 8. [Infraestructura y despliegue](#infraestructura-y-despliegue)
 9. [Testing](#testing)
+10. [Limitaciones y escalabilidad](#limitaciones-y-escalabilidad)
 
 ---
 
@@ -399,6 +400,28 @@ python -m pytest tests/ -v
 | `test_pipeline.py` | 5 | `indexar_datos()`: archivo faltante, procesamiento, lotes, force_reindex |
 
 Todos los tests usan `unittest.mock.patch` para aislar dependencias externas (ChromaDB, embeddings, filesystem).
+
+---
+
+## Limitaciones y escalabilidad
+
+### Limitaciones actuales
+
+- **Base de conocimiento estática**: el crawler debe re-ejecutarse manualmente para reflejar cambios en bancolombia.com. No hay actualización incremental automática.
+- **ChromaDB en disco local**: no soporta acceso concurrente de múltiples procesos. Con alta carga de usuarios simultáneos, esto se convierte en un cuello de botella.
+- **MCP via stdio**: el servidor MCP se levanta como subproceso por cada instancia del agente. No es reutilizable entre sesiones ni entre workers.
+- **Estado de conversación en memoria**: `InMemorySaver` no sobrevive reinicios del proceso. Los historiales de chat se pierden al reiniciar la app.
+- **Un solo LLM proveedor**: la dependencia de Google Gemini implica que una interrupción de la API detiene el sistema completo.
+
+### Cómo escalaría
+
+| Área | Cambio |
+|------|--------|
+| **Vector DB** | Reemplazar ChromaDB local por un servicio distribuido (Qdrant, Weaviate, Pinecone) con soporte para múltiples réplicas de lectura |
+| **MCP** | Migrar el transporte de `stdio` a `streamable-http` y desplegar el servidor MCP como un servicio independiente que múltiples agentes compartan |
+| **Estado de conversación** | Sustituir `InMemorySaver` por `PostgresSaver` o `RedisSaver` de LangGraph para persistencia entre reinicios y réplicas |
+| **Actualización de datos** | Añadir un job programado que ejecute el crawler y re-indexe solo páginas modificadas comparando `scraped_at` |
+| **LLM** | Abstraer el proveedor con un router que tenga fallback (Gemini → OpenAI) y rate-limit por usuario |
 
 ---
 

@@ -1,6 +1,5 @@
 import asyncio
 import os
-import sys
 import threading
 import uuid
 from pathlib import Path
