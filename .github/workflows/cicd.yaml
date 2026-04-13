@@ -37,6 +37,7 @@ jobs:
 
       - name: Linter (Ruff)
         run: |
+          pip install ruff
           # E = errores de estilo, F = errores lógicos, I = imports
           # --format=github integra los errores en la UI de Pull Requests
           python -m ruff check . --select=E,F --ignore=E501 --output-format=github
