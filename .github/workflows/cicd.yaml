@@ -39,11 +39,11 @@ jobs:
         run: |
           # E = errores de estilo, F = errores lógicos, I = imports
           # --format=github integra los errores en la UI de Pull Requests
-          ruff check . --select=E,F --ignore=E501 --output-format=github
+          python -m ruff check . --select=E,F --ignore=E501 --output-format=github
 
       - name: Ejecutar Pruebas (Pytest) con Cobertura
         run: |
-          pytest tests/ -v --cov=src --cov-report=term-missing --cov-report=xml
+          python -m pytest tests/ -v --cov=src --cov-report=term-missing --cov-report=xml
 
       - name: Subir reporte de cobertura
         if: always()
