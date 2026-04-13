@@ -15,6 +15,7 @@ python-dotenv
 tenacity
 
 # LangChain (importado en src/)
+langchain
 langchain-core
 langchain-chroma
 langchain-huggingface
